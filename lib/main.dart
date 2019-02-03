@@ -3,6 +3,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:simple_permissions/simple_permissions.dart';
 
 void main() => runApp(MyApp());
 
@@ -22,7 +23,7 @@ class MyApp extends StatelessWidget {
         // or simply save your changes to "hot reload" in a Flutter IDE).
         // Notice that the counter didn't reset back to zero; the application
         // is not restarted.
-        primarySwatch: Colors.brown,
+        primarySwatch: Colors.grey,
       ),
       home: MyHomePage(title: 'Smoking tracker'),
     );
@@ -80,9 +81,16 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   Future<void> _exportToCSV() async {
-    final directory = await getApplicationDocumentsDirectory();
-    File csvFile = File("${directory.path}/smoking-consumption.csv");
+    bool _hasPermission = await SimplePermissions.checkPermission(Permission.WriteExternalStorage);
+    if (!_hasPermission) {
+      PermissionStatus askPermission = await SimplePermissions.requestPermission(Permission.WriteExternalStorage);
+      if (askPermission != PermissionStatus.authorized) {
+        return;
+      }
+    }
 
+    final directory = await getExternalStorageDirectory();
+    File csvFile = File("${directory.path}/smoking-consumption.csv");
     String csvString = "Date;Amount;\n";
     var consumption = await _getConsumptionFromDB();
     consumption.forEach((k,v) {
@@ -96,7 +104,7 @@ class _MyHomePageState extends State<MyHomePage> {
         toastLength: Toast.LENGTH_SHORT,
         gravity: ToastGravity.BOTTOM,
         timeInSecForIos: 2,
-        backgroundColor: Colors.brown,
+        backgroundColor: Colors.grey,
         textColor: Colors.white,
         fontSize: 16.0
     );
@@ -285,7 +293,7 @@ class _MyHomePageState extends State<MyHomePage> {
             Container(
               margin: EdgeInsets.only(top: 8.0),
               child: FlatButton(
-                color: Colors.brown,
+                color: Colors.grey,
                 child: Text(
                     "Save consumption",
                     style: TextStyle(
@@ -413,7 +421,6 @@ class _MyHomePageState extends State<MyHomePage> {
 
     // See if value exists already
     List<Map> records = await database.rawQuery('SELECT * FROM consumption_today WHERE time = ? AND amount = ?', [time, amount]);
-    debugPrint("Today: ${records.toString()}");
     if (records.length != 0) {
       await database.rawUpdate('UPDATE consumption_today SET time = ?, amount = ? WHERE time = ?', [time, amount+1, time]);
     } else {
@@ -432,7 +439,6 @@ class _MyHomePageState extends State<MyHomePage> {
     Database database = await openDatabase(path, version: 1);
 
     List<Map> records = await database.rawQuery('SELECT * FROM consumption_today');
-    debugPrint(records.last.toString());
     return records.last['amount'];
   }
 
@@ -443,7 +449,6 @@ class _MyHomePageState extends State<MyHomePage> {
     Database database = await openDatabase(path, version: 1);
 
     List<Map> records = await database.rawQuery('SELECT * FROM consumption_today');
-    debugPrint(records.last.toString());
     return records.last['time'];
   }
 
@@ -478,7 +483,6 @@ class _MyHomePageState extends State<MyHomePage> {
         }
         break;
     }
-    debugPrint(returnStr);
     return returnStr;
   }
 }
